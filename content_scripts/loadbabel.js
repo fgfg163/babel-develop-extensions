@@ -1,22 +1,74 @@
+const xhrPromise = (url, option = {}) => (
+  new Promise((resolve, reject) => {
+    let theUrl = url;
+    const {
+      data = {},
+      header = {},
+    } = option;
+    let {
+      method,
+    } = option;
+    method = method ? method.toUpperCase() : 'GET';
+
+
+    const xhr = new XMLHttpRequest();
+
+    const formData = new FormData();
+
+    if (method === 'GET') {
+      if (Object.keys(data).length > 0) {
+        const search = theUrl.match(/\?([^#]*)/)[1] || '';
+        const searchParams = new URLSearchParams(search);
+        Object.entries(data).forEach(([key, value]) => {
+          searchParams.append(key, value);
+        });
+        theUrl = `${theUrl}?${searchParams.toString()}`;
+      }
+    } else {
+      Object.entries(data).forEach(([key, value]) => {
+        searchParams.append(key, value);
+      });
+    }
+    xhr.open(method, theUrl, true);
+    if (header) {
+      Object.entries(header).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value);
+      });
+    }
+    xhr.onload = (event) => {
+      resolve([event.currentTarget.responseText, event.currentTarget]);
+    }
+    xhr.onerror = (event) => {
+      reject([event.currentTarget]);
+    }
+    xhr.send(formData);
+  })
+);
+
 const loadScript = (params, parentNode) => {
-  return new Promise((resolve, reject) => {
+  let pstart;
+  if (params.src) {
+    pstart = xhrPromise(params.src);
+  } else {
+    pstart = Promise.resolve([params.innerHTML]);
+  }
+
+  return pstart.then(([result]) => {
     const theNewScript = window.document.createElement('script');
     Object.entries(params).forEach(([key, value]) => {
       theNewScript[key] = value;
     });
-    const babelObj = Babel.transform(params.innerHTML, {
+    const babelObj = Babel.transform(result, {
       presets: ['react', 'stage-2'],
       plugins: ['transform-es2015-modules-commonjs'],
     });
-    console.log(babelObj);
-    if (params.innerHTML) {
-      theNewScript.innerHTML = `
+    theNewScript.innerHTML = `
       (function(){
       ${babelObj.code}
       })();`;
-    }
-    resolve(theNewScript);
+    return theNewScript;
   });
+
 };
 
 const runScript = (theNewScript, parentNode) => {
@@ -29,15 +81,7 @@ const runScript = (theNewScript, parentNode) => {
 (async () => {
   const theScriptList = Array.prototype.filter.call(window.document.querySelectorAll('script'), e => e.type === 'text/babel');
 
-  const theScriptPromiseList = theScriptList.map((element) => {
-    if (element.innerHTML !== '') {
-      const param = {
-        innerHTML: element.innerHTML,
-        type: 'text/javascript',
-      };
-      return loadScript(param);
-    }
-  });
+  const theScriptPromiseList = theScriptList.map(element => loadScript(element));
 
   const theBody = document.getElementsByTagName('body')[0];
 
