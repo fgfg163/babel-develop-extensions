@@ -62,6 +62,7 @@ const loadScript = (params, parentNode) => {
       presets: ['react', 'stage-2'],
       plugins: ['transform-es2015-modules-commonjs'],
     });
+    console.log(babelObj);
     theNewScript.innerHTML = `
       (function(){
       ${babelObj.code}
