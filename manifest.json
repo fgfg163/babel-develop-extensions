@@ -7,18 +7,34 @@
     "default_title": "Babel develop extensions",
     "default_popup": "/popup/popup.html"
   },
+  "background": {
+    "scripts": [
+      "/background/background.js"
+    ]
+  },
   "content_scripts": [
     {
       "js": [
-        "/lib/babel.min.js",
+        "/lib/stop-page.js",
+        "/lib/get-res.js",
         "/content_scripts/loadbabel.js"
       ],
       "matches": [
-        "<all_urls>"
+        "http://*/*",
+        "https://*/*"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
+  "web_accessible_resources": [
+    "/lib/await-require.js",
+    "/empty.html"
+  ],
   "permissions": [
+    "tabs",
+    "webRequest",
+    "webRequestBlocking",
+    "http://*/*",
+    "https://*/*"
   ]
 }

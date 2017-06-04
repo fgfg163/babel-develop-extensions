@@ -1,93 +1,118 @@
-const xhrPromise = (url, option = {}) => (
-  new Promise((resolve, reject) => {
-    let theUrl = url;
-    const {
-      data = {},
-      header = {},
-    } = option;
-    let {
-      method,
-    } = option;
-    method = method ? method.toUpperCase() : 'GET';
-
-
-    const xhr = new XMLHttpRequest();
-
-    const formData = new FormData();
-
-    if (method === 'GET') {
-      if (Object.keys(data).length > 0) {
-        const search = theUrl.match(/\?([^#]*)/)[1] || '';
-        const searchParams = new URLSearchParams(search);
-        Object.entries(data).forEach(([key, value]) => {
-          searchParams.append(key, value);
-        });
-        theUrl = `${theUrl}?${searchParams.toString()}`;
-      }
-    } else {
-      Object.entries(data).forEach(([key, value]) => {
-        searchParams.append(key, value);
-      });
-    }
-    xhr.open(method, theUrl, true);
-    if (header) {
-      Object.entries(header).forEach(([key, value]) => {
-        xhr.setRequestHeader(key, value);
-      });
-    }
-    xhr.onload = (event) => {
-      resolve([event.currentTarget.responseText, event.currentTarget]);
-    }
-    xhr.onerror = (event) => {
-      reject([event.currentTarget]);
-    }
-    xhr.send(formData);
-  })
-);
-
-const loadScript = (params, parentNode) => {
-  let pstart;
-  if (params.src) {
-    pstart = xhrPromise(params.src);
-  } else {
-    pstart = Promise.resolve([params.innerHTML]);
-  }
-
-  return pstart.then(([result]) => {
-    const theNewScript = window.document.createElement('script');
-    Object.entries(params).forEach(([key, value]) => {
-      theNewScript[key] = value;
-    });
-    const babelObj = Babel.transform(result, {
-      presets: ['react', 'stage-2'],
-      plugins: ['transform-es2015-modules-commonjs'],
-    });
-    console.log(babelObj);
-    theNewScript.innerHTML = `
-      (function(){
-      ${babelObj.code}
-      })();`;
-    return theNewScript;
-  });
-
+const sleep = function (ms) {
+  return new Promise(resolve => setTimeout(resolve, ms))
 };
 
-const runScript = (theNewScript, parentNode) => {
-  parentNode.appendChild(theNewScript);
-  // setTimeout(() => {
-  //   parentNode.removeChild(theNewScript);
-  // }, 0);
+const runScript = function (node, parentNode = document.body) {
+  let params = node;
+  if (typeof (params.tagName) === 'string') {
+    params = {};
+    [...node.attributes].forEach((attr) => {
+      params[attr.name] = attr.value;
+    });
+    if (!node.src) {
+      params.innerHTML = node.innerHTML;
+    }
+  }
+
+  if (params.src) {
+    return new Promise((resolve) => {
+      const theScript = document.createElement('script');
+      Object.entries(params).forEach(([key, value]) => {
+        theScript[key] = value;
+      });
+      theScript.onload = () => {
+        setTimeout(() => {
+          resolve();
+        }, 0);
+      };
+      theScript.onerror = resolve;
+      parentNode.appendChild(theScript);
+    });
+  } else {
+    const theScript = document.createElement('script');
+    Object.entries(params).forEach(([key, value]) => {
+      theScript[key] = value;
+    });
+    parentNode.appendChild(theScript);
+    return 0;
+  }
+};
+
+
+const parseDom = function (text) {
+  const theIframe = document.createElement('iframe');
+  document.body.appendChild(theIframe);
+  theIframe.contentDocument.innerHTML = text;
+  return theIframe.contentDocument;
+};
+
+const replaceOldScript = async (oldScript) => {
+  const [res] = await getRes(oldScript.src);
+  const newScript = oldScript.cloneNode();
+  newScript.setAttribute('data-src', newScript.src);
+  newScript.removeAttribute('src');
+  newScript.innerHTML = res;
+  oldScript.parentNode.replaceChild(newScript, oldScript);
+  return newScript;
 }
 
+const sendMessagePromise = function (msg) {
+  return new Promise((resolve) => {
+    chrome.runtime.sendMessage(msg, resolve);
+  });
+};
+
 (async () => {
-  const theScriptList = Array.prototype.filter.call(window.document.querySelectorAll('script'), e => e.type === 'text/babel');
-
-  const theScriptPromiseList = theScriptList.map(element => loadScript(element));
-
-  const theBody = document.getElementsByTagName('body')[0];
-
-  for (const elementPromise of theScriptPromiseList) {
-    const element = await elementPromise;
-    runScript(element, theBody);
+  // await runScript({ src: chrome.extension.getURL('/lib/await-require.js') });
+  const { value: lastMainFrameDetails } = await sendMessagePromise({ type: 'GET_LAST_MAIN_FRAME_DETAILS' });
+  let pageOptions = {};
+  if (lastMainFrameDetails[0].method === 'POST') {
+    const headers = {};
+    lastMainFrameDetails[1].requestHeaders.forEach((e) => {
+      headers[e.name] = e.value;
+    });
+    headers['Content-Type'] = 'application/x-www-form-urlencoded';
+    console.log(headers);
+    pageOptions = {
+      method: lastMainFrameDetails[0].method,
+      headers: headers,
+      data: lastMainFrameDetails[0].requestBody.formData,
+    }
   }
+  const [res] = await getRes(window.location.href, pageOptions);
+  const resRoot = parseDom(res);
+  const scriptList = [...resRoot.getElementsByTagName('script')];
+  const scriptLoadList = await Promise.all(
+    scriptList.map((theScript) => {
+      if (theScript.src) {
+        return replaceOldScript(theScript);
+      }
+      return theScript;
+    })
+  );
+  document.close();
+  document.write(resRoot.innerHTML);
+  document.close();
 })();
+
+
+chrome.runtime.onMessage.addListener(
+  async (request, sender, sendResponse) => {
+    if (sender.tab) {
+      switch (request.type) {
+        case 'GET_SCRIPT': {
+          const [res] = await getRes(request.url);
+          sendResponse({ type: 'RESPONSE_GET_SCRIPT', value: res });
+          break;
+        }
+        case 'GET_LOCAL_SCRIPT': {
+          const theUrl = chrome.extension.getURL(request.url);
+          const [res] = await getRes(theUrl);
+          sendResponse({ type: 'RESPONSE_GET_LOCAL_SCRIPT', value: res });
+          break;
+        }
+        default:
+      }
+    }
+  }
+);
