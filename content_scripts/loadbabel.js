@@ -41,8 +41,24 @@ const runScript = function (node, parentNode = document.body) {
 
 const parseDom = function (text) {
   const theIframe = document.createElement('iframe');
+  theIframe.style.position = 'fixed';
+  theIframe.style.top = '0';
+  theIframe.style.left = '0';
+  theIframe.style.right = '0';
+  theIframe.style.bottom = '0';
+  theIframe.style.width = '100%';
+  theIframe.style.height = '100%';
   document.body.appendChild(theIframe);
-  theIframe.contentDocument.innerHTML = text;
+  const newScript = theIframe.contentDocument.createElement('script');
+  newScript.innerHTML = 'window.sss = "aaaabbbb"';
+  theIframe.contentDocument.body.appendChild(newScript)
+  theIframe.contentDocument.write(text);
+  theIframe.contentDocument.close(text);
+  setTimeout(() => {
+    const newScript = theIframe.contentDocument.createElement('script');
+    newScript.innerHTML = 'console.log(window.sss)';
+    theIframe.contentDocument.body.appendChild(newScript)
+  }, 1000);
   return theIframe.contentDocument;
 };
 
@@ -72,7 +88,6 @@ const sendMessagePromise = function (msg) {
       headers[e.name] = e.value;
     });
     headers['Content-Type'] = 'application/x-www-form-urlencoded';
-    console.log(headers);
     pageOptions = {
       method: lastMainFrameDetails[0].method,
       headers: headers,
@@ -81,18 +96,18 @@ const sendMessagePromise = function (msg) {
   }
   const [res] = await getRes(window.location.href, pageOptions);
   const resRoot = parseDom(res);
-  const scriptList = [...resRoot.getElementsByTagName('script')];
-  const scriptLoadList = await Promise.all(
-    scriptList.map((theScript) => {
-      if (theScript.src) {
-        return replaceOldScript(theScript);
-      }
-      return theScript;
-    })
-  );
-  document.close();
-  document.write(resRoot.innerHTML);
-  document.close();
+  // const scriptList = [...resRoot.getElementsByTagName('script')];
+  // const scriptLoadList = await Promise.all(
+  //   scriptList.map((theScript) => {
+  //     if (theScript.src) {
+  //       return replaceOldScript(theScript);
+  //     }
+  //     return theScript;
+  //   })
+  // );
+  // document.close();
+  // document.write(resRoot.innerHTML);
+  // document.close();
 })();
 
 
