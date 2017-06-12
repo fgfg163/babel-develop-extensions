@@ -9,23 +9,24 @@
   },
   "background": {
     "scripts": [
-      "/background/background.js"
+      //      "/background/background.js"
+            "/background/test.js"
     ]
   },
-  "content_scripts": [
-    {
-      "js": [
-        "/lib/stop-page.js",
-        "/lib/get-res.js",
-        "/content_scripts/loadbabel.js"
-      ],
-      "matches": [
-        "http://*/*",
-        "https://*/*"
-      ],
-      "run_at": "document_start"
-    }
-  ],
+  //  "content_scripts": [
+  //    {
+  //      "js": [
+  //        "/lib/stop-page.js",
+  //        "/lib/get-res.js",
+  //        "/content_scripts/loadbabel.js"
+  //      ],
+  //      "matches": [
+  //        "http://*/*",
+  //        "https://*/*"
+  //      ],
+  //      "run_at": "document_start"
+  //    }
+  //  ],
   "web_accessible_resources": [
     "/lib/await-require.js",
     "/empty.html"
@@ -34,7 +35,6 @@
     "tabs",
     "webRequest",
     "webRequestBlocking",
-    "http://*/*",
-    "https://*/*"
+    "<all_urls>"
   ]
 }
